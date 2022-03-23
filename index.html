@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+	<title>My experiment</title>
+	<script src="https://unpkg.com/jspsych@7.2.1"></script>
+	<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.0"></script>
+	<script type="text/javascript" src="trails.js"></script>
+	<script type="text/javascript" src="steps.js"></script>
+	<link rel="stylesheet" href="https://unpkg.com/keyboard-css@1.2.2/dist/css/main.min.css" />
+
+<script type="text/javascript" src="fc1_steps.json"></script>
+
+<script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.1.0"></script>
+	<link href="https://unpkg.com/jspsych@7.2.1/css/jspsych.css" rel="stylesheet" type="text/css" />
+</head>
+
+<body>
+	
+</body>
+<script>
+		const goodResponeAudio = new Audio('feedback.wav');
+			const badResponeAudio = new Audio('error.wav');
+		const digitToNumber = {
+				0: "10",
+				q: "11",
+				w: "12",
+				e: "13",
+				r: "14",
+				t: "15",
+				y: "16",
+				u: "17",
+				i: "18",
+				o: "19",
+				p: "20",
+			}
+			const pause = {
+					type: jsPsychHtmlKeyboardResponse,
+					stimulus: '<p style="font-size: 25px;">press space to continue to next program</p>',
+					// prompt: ">>>>>>",
+					choices: " ",
+				};  
+				console.log(window.location.href.indexOf("feedback=1"));
+
+	const isFeedBack=window.location.href.indexOf("feedback=1")>-1;
+	const formatDiv=(currQuestion, split_screen)=>{
+		let base=`<div style="${(currQuestion.response_needed === "0") ? "font-size:20px; color:green;" : ""}">${currQuestion.text1}<br><p style="${(split_screen === "1" && currQuestion.text2 !== " ") ? 'margin-top:20px;border-top: 2px solid' : ""}">${currQuestion.text2}</p></div>`;
+		base+=currQuestion.response_needed ==="0" ? ">>>>>>" : "";
+		return  base
+
+	}
+	const buildTrial  = (timeLine, split_screen) => {
+		
+
+			let jsPsychQuestions = [];
+			timeLine.map((currQuestion, index) => {
+				let fixAnswer = true;
+				let ifNode = {
+					type: jsPsychHtmlKeyboardResponse,
+					stimulus: `right answer:${currQuestion.correction_text}`,
+					choices: "ALL_KEYS"
+				}
+				let question = {
+					type: jsPsychHtmlKeyboardResponse,
+					stimulus: formatDiv(currQuestion, split_screen),
+					// prompt:currQuestion.response_needed ==="0" ? ">>>>>>" : "",
+					data: {
+						correct_response: currQuestion.expected_response,
+						correct: true,
+					},
+					on_finish: function (data) {
+						if (currQuestion.expected_response !== " ") {
+							if (jsPsych.pluginAPI.compareKeys(data.response, currQuestion.expected_response) || jsPsych.pluginAPI.compareKeys(digitToNumber[data.response], currQuestion.expected_response)) {
+								fixAnswer = false;
+								isFeedBack && goodResponeAudio.play();
+								data.response = digitToNumber[data.response]
+							} else {
+								data.correct = false;
+								isFeedBack && badResponeAudio.play();
+							}
+						}
+
+					},
+					
+					choices: currQuestion.response_needed==="1" ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', ''] : "ALL_KEYS",
+				}
+			
+
+				var if_node = {
+					type:jsPsychHtmlKeyboardResponse,
+					timeline: [ifNode],
+					choices:  "ALL_KEYS",
+
+					conditional_function: function () {
+						return fixAnswer && currQuestion.expected_response !== " " && (window.location.href.indexOf("feedback=1") > -1)
+					}
+				}
+
+				jsPsychQuestions = [...jsPsychQuestions, question, if_node]
+				
+			})
+		return jsPsychQuestions
+		} 
+
+	
+	let timeLine=[]
+	trails.map((singalTrail,i)=>{
+		let trailStart= singalTrail.rows.split(":")[0];
+		let trailEnd= singalTrail.rows.split(":")[1];
+		let trailArray=steps.slice(trailStart,trailEnd);
+		let trailTimeLine = [pause,...buildTrial (trailArray, singalTrail.split_screen)];
+		let topTimeLine = {
+			type: jsPsychHtmlKeyboardResponse,
+			prompt: `<p style="	border-top: 2px solid;
+			position: absolute;
+			bottom: 10%;
+			left:47%;
+			width: 100px;">${singalTrail.trial_code}-${singalTrail.trial_num}</p>`,
+			prompt_location: 'belowcanvas',
+			timeline: trailTimeLine
+	}
+		timeLine=[...timeLine,topTimeLine]
+
+	})
+	const enter_fullscreen = {
+			type: jsPsychFullscreen,
+			fullscreen_mode: true,
+			
+		}
+	const exit_fullscreen = {
+			type: jsPsychFullscreen,
+			fullscreen_mode: false,
+			delay_after: 0
+		}
+
+	 let amoutOfTests = Math.floor(Math.random() * (80 - 20 + 1) + 20)
+	const jsPsych = initJsPsych({
+		
+		show_progress_bar: true,
+		
+		on_finish: function () {
+			jsPsych.data.get().localSave('csv', 'mydata.csv');
+		}
+	});
+
+				 let random = jsPsych.randomization.sampleWithoutReplacement(timeLine, amoutOfTests)
+				 console.log(random);
+
+
+		 jsPsych.run([enter_fullscreen,...random, exit_fullscreen]);
+	
+
+
+	
+
+	
+</script>
+
+</html>
