@@ -1,159 +1,493 @@
 <!DOCTYPE html>
+
 <html>
+	<head>
+		<title>My experiment</title>
 
-<head>
-	<title>My experiment</title>
-	<script src="https://unpkg.com/jspsych@7.2.1"></script>
-	<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.0"></script>
-	<script type="text/javascript" src="trails.js"></script>
-	<script type="text/javascript" src="steps.js"></script>
-	<link rel="stylesheet" href="https://unpkg.com/keyboard-css@1.2.2/dist/css/main.min.css" />
+		<script src="https://unpkg.com/jspsych@7.2.1"></script>
 
-<script type="text/javascript" src="fc1_steps.json"></script>
+		<script src="https://unpkg.com/@jspsych/plugin-html-keyboard-response@1.1.0"></script>
 
-<script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.1.0"></script>
-	<link href="https://unpkg.com/jspsych@7.2.1/css/jspsych.css" rel="stylesheet" type="text/css" />
-</head>
 
-<body>
-	
-</body>
-<script>
-		const goodResponeAudio = new Audio('feedback.wav');
-			const badResponeAudio = new Audio('error.wav');
-		const digitToNumber = {
-				0: "10",
-				q: "11",
-				w: "12",
-				e: "13",
-				r: "14",
-				t: "15",
-				y: "16",
-				u: "17",
-				i: "18",
-				o: "19",
-				p: "20",
+		<link
+			rel="stylesheet"
+			href="https://unpkg.com/keyboard-css@1.2.2/dist/css/main.min.css"
+		/>
+		<script src="https://unpkg.com/@jspsych/plugin-fullscreen@1.1.0"></script>
+
+		<link
+			href="https://unpkg.com/jspsych@7.2.1/css/jspsych.css"
+			rel="stylesheet"
+			type="text/css"
+		/>
+	</head>
+
+	<body></body>
+
+	<script src="https://unpkg.com/papaparse@5.3.2/papaparse.min.js"></script>
+
+	<script>
+	//-------------url query selectors 
+		const urlSearch = new URLSearchParams(window.location.search);
+		const params = Object.fromEntries(urlSearch.entries());
+		const isFeedBack = params.feedback==="1" ? true : false;
+    //------------audio init 
+		const goodResponeAudio = new Audio("feedback.wav");
+		const badResponeAudio = new Audio("error.wav");
+
+
+	// ----------config file fetch and format
+		const configFile = `./${params.config}.csv`;
+		// parse csv data config
+		let config = {
+			quotes: false, //or array of booleans
+
+			quoteChar: '"',
+
+			escapeChar: '"',
+
+			delimiter: ",",
+
+			header: true,
+
+			dynamicTyping: true,
+
+			newline: "\r\n",
+
+			skipEmptyLines: false, //other option is 'greedy', meaning skip delimiters, quotes, and whitespace.
+
+			columns: null, //or array of strings
+		};
+
+		function groupBy(arr, property) {
+			let sortedArray = arr.reduce((acc, cur) => {
+				acc[cur[property]] = [...(acc[cur[property]] || []), cur];
+
+				return acc;
+			}, {});
+
+			//  turn sortedArray into an array
+
+			let result = [];
+
+			for (let key in sortedArray) {
+				result.push(sortedArray[key]);
 			}
-			const pause = {
-					type: jsPsychHtmlKeyboardResponse,
-					stimulus: '<p style="font-size: 25px;">press space to continue to next program</p>',
-					// prompt: ">>>>>>",
-					choices: " ",
-				};  
-				console.log(window.location.href.indexOf("feedback=1"));
 
-	const isFeedBack=window.location.href.indexOf("feedback=1")>-1;
-	const formatDiv=(currQuestion, split_screen)=>{
-		let base=`<div style="${(currQuestion.response_needed === "0") ? "font-size:20px; color:green;" : ""}">${currQuestion.text1}<br><p style="${(split_screen === "1" && currQuestion.text2 !== " ") ? 'margin-top:20px;border-top: 2px solid' : ""}">${currQuestion.text2}</p></div>`;
-		base+=currQuestion.response_needed ==="0" ? ">>>>>>" : "";
-		return  base
+			// sort result by first objet of nested array trail_order
 
-	}
-	const buildTrial  = (timeLine, split_screen) => {
-		
-
-			let jsPsychQuestions = [];
-			timeLine.map((currQuestion, index) => {
-				let fixAnswer = true;
-				let ifNode = {
-					type: jsPsychHtmlKeyboardResponse,
-					stimulus: `right answer:${currQuestion.correction_text}`,
-					choices: "ALL_KEYS"
-				}
-				let question = {
-					type: jsPsychHtmlKeyboardResponse,
-					stimulus: formatDiv(currQuestion, split_screen),
-					// prompt:currQuestion.response_needed ==="0" ? ">>>>>>" : "",
-					data: {
-						correct_response: currQuestion.expected_response,
-						correct: true,
-					},
-					on_finish: function (data) {
-						if (currQuestion.expected_response !== " ") {
-							if (jsPsych.pluginAPI.compareKeys(data.response, currQuestion.expected_response) || jsPsych.pluginAPI.compareKeys(digitToNumber[data.response], currQuestion.expected_response)) {
-								fixAnswer = false;
-								isFeedBack && goodResponeAudio.play();
-								data.response = digitToNumber[data.response]
-							} else {
-								data.correct = false;
-								isFeedBack && badResponeAudio.play();
-							}
-						}
-
-					},
-					
-					choices: currQuestion.response_needed==="1" ? ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0', 'q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p', ''] : "ALL_KEYS",
-				}
+			result = result.sort((a, b) => {
+				return a[0].trial_order - b[0].trial_order;
+			});
+			if(result[0][0].trial_order === null){
+				result.shift();
+			}
 			
 
-				var if_node = {
-					type:jsPsychHtmlKeyboardResponse,
-					timeline: [ifNode],
-					choices:  "ALL_KEYS",
+			return result;
+		}
 
-					conditional_function: function () {
-						return fixAnswer && currQuestion.expected_response !== " " && (window.location.href.indexOf("feedback=1") > -1)
-					}
-				}
 
-				jsPsychQuestions = [...jsPsychQuestions, question, if_node]
+		function getData() {
+			let url = configFile;
+
+			return fetch(url)
+				.then((res) => {
+					if (!res.ok) throw new Error(res.status);
+					return res.text();
+				})
+				.then((text) => {
+					return Papa.parse(text, config).data;
+				})
+				.catch((err) => {					
+					document.body.innerHTML += `<div>${err}</div>`;
 				
-			})
-		return jsPsychQuestions
-		} 
+					throw new Error(err);
+				});
+		}
 
+// ----------
+
+
+
+// ---------------key binding config
+
+
+		let choices = [
+			"]",
+			"tab",
+			"1",
+			"2",
+			"3",
+			"4",
+			"5",
+			"6",
+			"7",
+			"8",
+			"9",
+			"0",
+			"q",
+			"w",
+			"e",
+			"r",
+			"t",
+			"y",
+			"u",
+			"i",
+			"o",
+			"p",
+			"",
+		];
 	
-	let timeLine=[]
-	trails.map((singalTrail,i)=>{
-		let trailStart= singalTrail.rows.split(":")[0];
-		let trailEnd= singalTrail.rows.split(":")[1];
-		let trailArray=steps.slice(trailStart,trailEnd);
-		let trailTimeLine = [pause,...buildTrial (trailArray, singalTrail.split_screen)];
-		let topTimeLine = {
-			type: jsPsychHtmlKeyboardResponse,
-			prompt: `<p style="	border-top: 2px solid;
-			position: absolute;
-			bottom: 10%;
-			left:47%;
-			width: 100px;">${singalTrail.trial_code}-${singalTrail.trial_num}</p>`,
-			prompt_location: 'belowcanvas',
-			timeline: trailTimeLine
-	}
-		timeLine=[...timeLine,topTimeLine]
+		//translte keyboard keys to comparable values against the csv
+		const digitToNumber = {
+			0: "10",
 
-	})
-	const enter_fullscreen = {
+			q: "11",
+
+			w: "12",
+
+			e: "13",
+
+			r: "14",
+
+			t: "15",
+
+			y: "16",
+
+			u: "17",
+
+			i: "18",
+
+			o: "19",
+
+			p: "20",
+
+			"]": ">20",
+
+			tab: "<1",
+		};
+
+
+
+		const compareValuesInLoop=(currQuestion, data)=>
+				jsPsych.pluginAPI.compareKeys(
+				`${data.response}`,
+				`${data.correct_response}`
+			) ||
+				jsPsych.pluginAPI.compareKeys(
+				`${digitToNumber[data.response]}`,
+				`${data.correct_response}`
+			);
+
+		const compareValues = (currQuestion, data) =>
+			jsPsych.pluginAPI.compareKeys(
+				`${data.response}`,
+				`${currQuestion.expected_response}`
+			) ||
+			jsPsych.pluginAPI.compareKeys(
+				`${digitToNumber[data.response]}`,
+				`${currQuestion.expected_response}`
+			) 
+		
+
+// ---------------------------
+
+// -------------------content format
+
+
+		const pause = (singalTrail) => {
+			return {
+				type: jsPsychHtmlKeyboardResponse,
+
+				stimulus:
+					'<p style="font-size: 25px;">press space to start the next program<br>>>>>>></p>',
+				prompt: bottomText(
+					`${singalTrail[0].trial_code}-${singalTrail[0].trial_order}`,
+					"#ddd9d9"
+				),
+				choices: " ",
+			};
+		};
+
+		const bottomText = (value, color) => {
+			return `<p style="	
+								position: absolute;
+								color: ${color};
+								bottom: 10%;
+								width: 100px;">${value}</p>`;
+		};
+
+		const formatDiv = (currQuestion, split_screen) => {
+			let divSettings = {};
+			if (
+				currQuestion.text2 !== null &&
+				currQuestion.text2 !== "" &&
+				currQuestion.text2 !== undefined
+			) {
+				divSettings.addText2 = true;
+			}
+			if (currQuestion.text1 !== null && currQuestion.text1 !== "") {
+				divSettings.addText1 = true;
+			}
+			let base = `<div style="${
+				!currQuestion.response_needed ? " font-size:20px; color:green;" : ""
+			}"><a style="white-space:pre-wrap;">${divSettings.addText1 ? currQuestion.text1 : ""}</a>${divSettings.addText2 && divSettings.addText1 ? "<div style='margin:15px 0; border:1px solid'></div>" : ""}<a style="${
+				divSettings.addText2 && divSettings.addText1 ? "margin-top:20px;" : ""
+			}">${divSettings.addText2 ? currQuestion.text2 : ""}</a></div>`;
+		
+			return base;
+		};
+
+
+
+// -------------------trails builder-----!!MAIN LOGIC
+		const buildTrial = (timeLine, split_screen = 1) => {
+			let jsPsychQuestions = [];
+
+			timeLine.map((currQuestion, index) => {
+
+				if (currQuestion.is_loop) {
+					let feedback;
+
+					let trail;
+
+					let temp = [];
+
+					let loopLimit = currQuestion.n_iterations * currQuestion.n_loop_lines;
+
+					let rightAnswer = currQuestion.expected_response
+						.replace(/[\[\]\" "']+/g, "")
+						.split(",");
+					rightAnswer.push("backspace");
+					for (let i = 0; i < loopLimit; i++) {
+						let newTrial = {
+							type: jsPsychHtmlKeyboardResponse,
+
+							stimulus: formatDiv(currQuestion, split_screen),
+							prompt:function(){
+								let lastAnswer=jsPsych.data.get().last(1).values()[0];
+								if(lastAnswer.response==="backspace" && lastAnswer.correct_response!=="backspace"){
+									return `<p style="color:red;"">loop was ended early</p>`
+								}
+							},
+
+							choices: [...choices, "backspace"],
+
+							data: {
+								correct_response: rightAnswer[i],
+								loop_step: i,
+							},
+				
+							on_finish: function (data) {
+							
+								!isFeedBack && goodResponeAudio.play();
+								if (data.response === "backspace") {
+									jsPsych.endCurrentTimeline();
+								}
+								if (compareValuesInLoop(currQuestion, data)) {
+									data.correct = true;
+									isFeedBack && goodResponeAudio.play();
+								} else {
+									data.correct = false;
+									isFeedBack && badResponeAudio.play();
+								}
+							},
+						};
+
+						trail = newTrial;
+
+						let newFeedback = {
+							type: jsPsychHtmlKeyboardResponse,
+
+							choices: "NO_KEYS",
+							trial_duration:1000,
+							timeline: [
+								{
+									prompt:function(){
+										if(jsPsych.data.get().last(1).values()[0].response==="backspace") return "not end of loop";
+											return `<p style="left=49%;position: absolute;">${currQuestion.updated_var_name ? currQuestion.updated_var_name : "result"}=${rightAnswer[i]}</p>`
+									},
+									stimulus:formatDiv(currQuestion, split_screen,true)
+								},
+							],
+
+							conditional_function: function (data) {
+								let islastResponeCorrect = jsPsych.data
+									.get()
+									.last(1)
+									.values()[0].correct;
+								let lastRespone = jsPsych.data.get().last(2).values()[0];
+								return (
+									isFeedBack &&
+									!islastResponeCorrect
+								);
+							},
+						};
+						feedback = newFeedback;
+
+						temp = [...temp, newTrial, newFeedback];
+					}
+
+					feedback = {
+						...feedback,
+						timeline: [
+							{
+								stimulus: `<p style="font-size:20px; color:green;">end of loop<br>>>>>>></p>`,
+							},
+						],
+					};
+					trail = { ...trail, data: { correct_response: "backspace" } };
+					looptimeLine = {
+						type: jsPsychHtmlKeyboardResponse,
+
+						timeline: [trail, feedback],
+						loop_function: function (data) {
+							data.trials[0].loop_step = loopLimit;
+							loopLimit += 1;
+							return (
+								data.trials[0].response !== "backspace" &&
+								data.trials[1]?.response !== "backspace"
+							);
+						},
+					};
+
+					mainPart = {
+						type: jsPsychHtmlKeyboardResponse,
+						timeline: [...temp, looptimeLine],
+						
+					};
+
+					jsPsychQuestions = [...jsPsychQuestions, mainPart];
+
+					return jsPsychQuestions;
+				}
+				else {
+					let fixAnswer = true;
+
+					let ifNode = {
+						type: jsPsychHtmlKeyboardResponse,
+						trial_duration:1000,
+						stimulus:`<p style="font-size:20px; color:green;" >${currQuestion.updated_var_name ? currQuestion.updated_var_name : "result"}=${currQuestion.expected_response}</p>`,
+						
+						choices: "ALL_KEYS",
+					};
+
+					let question = {
+						type: jsPsychHtmlKeyboardResponse,
+
+						stimulus: formatDiv(currQuestion, split_screen),
+						prompt: !currQuestion.response_needed
+							? bottomText(">>>>>>", "black")
+							: "",
+
+						data: {
+							correct_response: currQuestion.expected_response,
+							correct: true,
+						},
+
+						choices: currQuestion.response_needed ? choices : " ",
+
+						on_finish: function (data) {
+							!isFeedBack && goodResponeAudio.play();
+							if (
+								currQuestion.expected_response !== " " &&
+								currQuestion.expected_response !== null
+							) {
+								data.response_value = digitToNumber[data.respone];
+
+								if (
+									jsPsych.pluginAPI.compareKeys(
+										`${data.response}`,
+										`${currQuestion.expected_response}`
+									) ||
+									jsPsych.pluginAPI.compareKeys(
+										`${digitToNumber[data.response]}`,
+										`${currQuestion.expected_response}`
+									)
+								) {
+									fixAnswer = false;
+									isFeedBack && goodResponeAudio.play();
+									data.response = digitToNumber[data.response];
+								} else {
+									data.correct = false;
+									isFeedBack && badResponeAudio.play();
+								}
+							}else goodResponeAudio.play();
+						},
+					};
+
+					var if_node = {
+						type: jsPsychHtmlKeyboardResponse,
+
+						timeline: [ifNode],
+
+						choices: "ALL_KEYS",
+
+						conditional_function: function () {
+							return (
+								fixAnswer &&
+								currQuestion.expected_response !== null &&
+								currQuestion.expected_response !== " " &&
+								isFeedBack
+							);
+						},
+					};
+
+					jsPsychQuestions = [...jsPsychQuestions, question, if_node];
+				}
+			});
+
+			return jsPsychQuestions;
+		};
+
+//-------------------- fixed trials
+		const enter_fullscreen = {
 			type: jsPsychFullscreen,
 			fullscreen_mode: true,
-			
-		}
-	const exit_fullscreen = {
+		};
+		const ask_english = {
+			type: jsPsychHtmlKeyboardResponse,
+			stimulus:"Please make sure that your keyboard is in English mode. Press 'A' to continue",
+			choices:["a","A"]
+		};
+		const exit_fullscreen = {
 			type: jsPsychFullscreen,
 			fullscreen_mode: false,
-			delay_after: 0
+			delay_after: 0,
+		};
+
+		async function main() {
+			let onlineSteps = await getData();
+
+			let fixedSteps = groupBy(onlineSteps, "trial_code");
+
+			let timeLine = [];
+
+			fixedSteps.map((singalTrail, i) => {
+				let trailTimeLine = [pause(singalTrail), ...buildTrial(singalTrail)];
+
+				let topTimeLine = {
+					type: jsPsychHtmlKeyboardResponse,
+
+					prompt_location: "belowcanvas",
+
+					timeline: trailTimeLine,
+				};
+
+				timeLine = [...timeLine, topTimeLine];
+			});
+			jsPsych.run([enter_fullscreen,ask_english, ...timeLine, exit_fullscreen]);
 		}
 
-	 let amoutOfTests = Math.floor(Math.random() * (80 - 20 + 1) + 20)
-	const jsPsych = initJsPsych({
-		
-		show_progress_bar: true,
-		
-		on_finish: function () {
-			jsPsych.data.get().localSave('csv', 'mydata.csv');
-		}
-	});
+		const jsPsych = initJsPsych({
+			show_progress_bar: true,
 
-				 let random = jsPsych.randomization.sampleWithoutReplacement(timeLine, amoutOfTests)
-				 console.log(random);
+			on_finish: function () {
+				jsPsych.data.get().localSave("csv", "mydata.csv");
+			},
+		});
 
-
-		 jsPsych.run([enter_fullscreen,...random, exit_fullscreen]);
-	
-
-
-	
-
-	
-</script>
-
+		main();
+	</script>
 </html>
